@@ -67,33 +67,21 @@ jobs:
 
     - name: Build firmware
       run: |
-          # 1. 设定并清理绝对路径下的工具链目录
-          TC_ROOT="$(pwd)/rt-n56u/toolchain-mipsel"
-          TOOLCHAIN_DIR="$TC_ROOT/toolchain-3.4.x"
-          rm -rf "$TC_ROOT"
-          mkdir -p "$TOOLCHAIN_DIR"
+          # 1. 直接在标准位置解压工具链
+          rm -rf rt-n56u/toolchain-mipsel
+          mkdir -p rt-n56u/toolchain-mipsel
           
-          echo "Downloading and extracting official toolchain..."
+          echo "Downloading toolchain..."
           curl -L https://gitlab.com/api/v4/projects/hadzhioglu%2Fpadavan-ng/packages/generic/toolchain/latest/toolchain.tzst -o toolchain.tzst
+          tar -I zstd -xf toolchain.tzst -C rt-n56u/toolchain-mipsel/
           
-          # 解压工具链
-          mkdir -p temp_tc
-          tar -I zstd -xf toolchain.tzst -C temp_tc
-          
-          # 自动对齐目录结构，确保 bin 目录直接位于 toolchain-3.4.x下
-          EXTRACTED_BIN=$(find temp_tc -type d -name "bin" | head -n 1)
-          if [ -n "$EXTRACTED_BIN" ]; then
-            PARENT_DIR=$(dirname "$EXTRACTED_BIN")
-            cp -r "$PARENT_DIR"/* "$TOOLCHAIN_DIR/"
-          fi
-          rm -rf temp_tc
-          
-          # 2. 严格校验编译器
-          if [ ! -f "$TOOLCHAIN_DIR/bin/mipsel-linux-uclibc-gcc" ]; then
-            echo "Error: Compiler not found!"
-            exit 1
-          else
-            echo "Compiler verified at: $TOOLCHAIN_DIR/bin/mipsel-linux-uclibc-gcc"
+          # 2. 无论解压出来叫什么名字，直接把里面的 bin 目录软链接到工具链根目录
+          FOUND_BIN=$(find rt-n56u/toolchain-mipsel -type d -name "bin" | head -n 1)
+          if [ -n "$FOUND_BIN" ]; then
+            PARENT_TC=$(dirname "$FOUND_BIN")
+            # 建立软链接，确保 rt-n56u/toolchain-mipsel/toolchain-3.4.x 指向正确位置
+            rm -rf rt-n56u/toolchain-mipsel/toolchain-3.4.x
+            ln -sf "$PARENT_TC" rt-n56u/toolchain-mipsel/toolchain-3.4.x
           fi
           
           # 3. 确保 NEWIFI-MINI 分区配置文件存在
@@ -103,21 +91,19 @@ jobs:
             echo "CONFIG_MTD_PART_PARTS=\"192k(u-boot),64k(config),64k(factory),14848k(firmware)\"" > "$BOARD_DIR/partitions.config"
           fi
           
-          # 4. 进入源码目录并显式导出绝对路径变量编译
+          # 4. 进入源码目录编译
           cd rt-n56u/trunk
-          
-          # 将绝对路径写入环境变量并传递给底层 Makefile
-          export PATH="$TOOLCHAIN_DIR/bin:$PATH"
+          export PATH=$PATH:$(pwd)/../toolchain-mipsel/toolchain-3.4.x/bin
           cp ../../build.config .config
           
-          # 使用绝对路径参数调用编译，彻底杜绝路径找不到的问题
           fakeroot ./build_firmware_modify NEWIFI-MINI
           
-          # 5. 提取生成的固件
+          # 5. 提取固件
           FW_FILE_NAME="$(find images -type f -regextype posix-extended -iregex ".*\.(trx|bin)$" \
                           -printf "%T@\t%f\n" | sort -V | tail -1 | cut -f2)"
           [[ -n $FW_FILE_NAME ]] || { echo "Firmware file not found"; exit 1; }
           echo "FW_FILE_NAME=$FW_FILE_NAME" >> $GITHUB_ENV
+
 
 
     - name: Run custom post-build script
