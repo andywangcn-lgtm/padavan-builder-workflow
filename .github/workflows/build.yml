@@ -16,6 +16,23 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y zstd gettext autopoint libtool libltdl-dev gawk build-essential ccache fakeroot libglib2.0-dev libfdt-dev libpixman-1-dev zlib1g-dev python3-pip libncurses5-dev libncursesw5-dev
 
+    - name: Fix partitions config for NEWIFI-MINI
+      run: |
+        # 确保 NEWIFI-MINI 目标板目录下有 partitions.config 文件，如果没有则从默认模板复制
+        BOARD_DIR="rt-n56u/trunk/configs/boards/Ralink/NEWIFI-MINI"
+        if [ ! -f "$BOARD_DIR/partitions.config" ]; then
+          echo "partitions.config not found, creating a default one..."
+          # 寻找一个现有的 partitions.config 作为蓝本复制过去
+          DEFAULT_CFG=$(find rt-n56u/trunk/configs/boards -name "partitions.config" | head -n 1)
+          if [ -n "$DEFAULT_CFG" ]; then
+            cp "$DEFAULT_CFG" "$BOARD_DIR/partitions.config"
+            echo "Copied from $DEFAULT_CFG"
+          else
+            # 如果实在找不到，手写一个常见 16M Flash 的默认分区配置
+            echo "CONFIG_MTD_PART_PARTS=\"192k(u-boot),64k(config),64k(factory),14848k(firmware)\"" > "$BOARD_DIR/partitions.config"
+          fi
+        fi
+
 
     - name: Get variables
       run: |
