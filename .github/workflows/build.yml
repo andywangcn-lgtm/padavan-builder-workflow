@@ -55,14 +55,14 @@ jobs:
         # 将工具链加入环境变量
         export PATH=$PATH:/opt/rt-n56u/toolchain-mipsel/toolchain-3.4.x/bin
         
-        # 核心修复：把 ZBT/WE1626 的默认 config 复制一份并重命名放到 templates 目录下作为编译模板
-        cp configs/boards/ZBT/WE1626/defconfig configs/templates/ZBT_WE1626.config
+        # 打印出 configs/boards 下的所有厂商目录，看看 ZBT 到底叫什么
+        echo "=== Listing boards ==="
+        ls -la configs/boards/
         
-        # 复制用户自定义配置文件
-        cp ../../build.config .config
-        
-        # 开始执行编译
-        fakeroot ./build_firmware_modify ZBT_WE1626
+        # 顺便找一下有没有包含 WE1626 的目录
+        find configs/boards -iname "*we1626*"
+
+
 
 
         FW_FILE_NAME="$(find images -type f -regextype posix-extended -iregex ".*\.(trx|bin)$" \
