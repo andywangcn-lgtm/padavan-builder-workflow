@@ -65,52 +65,42 @@ jobs:
     - name: Run custom pre-build script
       run: '[[ -f pre-build.sh ]] && . pre-build.sh || :'
 
-
     - name: Build firmware
       run: |
-          # 1. 彻底清理并重建标准的工具链目录
+          # 1. 彻底清理并直接将工具链解压到标准绝对路径
           rm -rf rt-n56u/toolchain-mipsel
-          mkdir -p rt-n56u/toolchain-mipsel
+          mkdir -p rt-n56u/toolchain-mipsel/toolchain-3.4.x
           
-          # 2. 下载官方工具链并使用 zstd 解压
           echo "Downloading official toolchain..."
           curl -L https://gitlab.com/api/v4/projects/hadzhioglu%2Fpadavan-ng/packages/generic/toolchain/latest/toolchain.tzst -o toolchain.tzst
+          
+          # 直接解压到目标目录，并处理可能的多层嵌套
           tar -I zstd -xf toolchain.tzst -C rt-n56u/toolchain-mipsel/
           
-          # 3. 智能全局搜索编译器真实路径并建立精准软链接（彻底解决 No such file 错误）
-          GCC_PATH=$(find rt-n56u/toolchain-mipsel -type f -name "mipsel-linux-uclibc-gcc" | head -n 1)
-          echo "找到的编译器路径为: $GCC_PATH"
+          # 自动展平可能存在的嵌套文件夹
+          if [ -d "rt-n56u/toolchain-mipsel/toolchain-3.4.x/toolchain-3.4.x" ]; then
+            mv rt-n56u/toolchain-mipsel/toolchain-3.4.x/toolchain-3.4.x/* rt-n56u/toolchain-mipsel/toolchain-3.4.x/
+            rm -rf rt-n56u/toolchain-mipsel/toolchain-3.4.x/toolchain-3.4.x
+          fi
           
-          BIN_DIR=$(dirname "$GCC_PATH")
-          TC_DIR=$(dirname "$BIN_DIR")
-          
-          rm -rf rt-n56u/toolchain-mipsel/toolchain-3.4.x
-          ln -sf $(pwd)/$TC_DIR rt-n56u/toolchain-mipsel/toolchain-3.4.x
-          
-          # 验证软链接是否成功
+          # 验证编译器是否存在
           ls -la rt-n56u/toolchain-mipsel/toolchain-3.4.x/bin/mipsel-linux-uclibc-gcc
           
-          # 4. 自动补全 NEWIFI-MINI 的分区配置文件（防止打包报错）
+          # 2. 确保 NEWIFI-MINI 分区配置文件存在
           BOARD_DIR="rt-n56u/trunk/configs/boards/Ralink/NEWIFI-MINI"
           mkdir -p "$BOARD_DIR"
           if [ ! -f "$BOARD_DIR/partitions.config" ]; then
-            echo "partitions.config not found, creating a default one..."
-            DEFAULT_CFG=$(find rt-n56u/trunk/configs/boards -name "partitions.config" | head -n 1)
-            if [ -n "$DEFAULT_CFG" ]; then
-              cp "$DEFAULT_CFG" "$BOARD_DIR/partitions.config"
-            else
-              echo "CONFIG_MTD_PART_PARTS=\"192k(u-boot),64k(config),64k(factory),14848k(firmware)\"" > "$BOARD_DIR/partitions.config"
-            fi
+            echo "CONFIG_MTD_PART_PARTS=\"192k(u-boot),64k(config),64k(factory),14848k(firmware)\"" > "$BOARD_DIR/partitions.config"
           fi
           
-          # 5. 进入源码目录并开始编译
+          # 3. 进入源码目录并开始编译
           cd rt-n56u/trunk
           export PATH=$PATH:$(pwd)/../toolchain-mipsel/toolchain-3.4.x/bin
           cp ../../build.config .config
           
           fakeroot ./build_firmware_modify NEWIFI-MINI
           
-          # 6. 提取固件
+          # 4. 提取固件
           FW_FILE_NAME="$(find images -type f -regextype posix-extended -iregex ".*\.(trx|bin)$" \
                           -printf "%T@\t%f\n" | sort -V | tail -1 | cut -f2)"
           [[ -n $FW_FILE_NAME ]] || { echo "Firmware file not found"; exit 1; }
