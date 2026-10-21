@@ -54,11 +54,15 @@ jobs:
         cd rt-n56u/trunk
         # 将工具链的 bin 目录加入系统的 PATH 环境变量中
         export PATH=$PATH:/opt/rt-n56u/toolchain-mipsel/toolchain-3.4.x/bin
-        
+
+        # 复制配置文件到当前目录
         cp ../../build.config .config
         
-        # 汉化/更新依赖并直接开始编译（去掉会报错的 make clean）
-        ./build_firmware.sh
+        # hanwckf 源码标准的编译命令（通过向 build_firmware 选择机型或直接执行）
+        # 如果是指定了 .config 中的 VENDOR 和 PRODUCT_ID，可以直接运行：
+        fakeroot ./build_firmware_ci.sh ${CONFIG_VENDOR}_${CONFIG_FIRMWARE_PRODUCT_ID}
+        # 或者如果该脚本不存在，使用默认无参数编译（它会读取 .config）：
+        # ./build_firmware.sh
 
 
         FW_FILE_NAME="$(find images -type f -regextype posix-extended -iregex ".*\.(trx|bin)$" \
