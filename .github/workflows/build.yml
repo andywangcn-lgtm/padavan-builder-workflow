@@ -67,43 +67,33 @@ jobs:
 
     - name: Build firmware
       run: |
-          # 1. 在绝对路径下初始化工具链目录
-          TOOLCHAIN_DIR="$(pwd)/rt-n56u/toolchain-mipsel/toolchain-3.4.x"
-          rm -rf "$(pwd)/rt-n56u/toolchain-mipsel"
+          # 1. 设定并清理绝对路径下的工具链目录
+          TC_ROOT="$(pwd)/rt-n56u/toolchain-mipsel"
+          TOOLCHAIN_DIR="$TC_ROOT/toolchain-3.4.x"
+          rm -rf "$TC_ROOT"
           mkdir -p "$TOOLCHAIN_DIR"
           
           echo "Downloading and extracting official toolchain..."
           curl -L https://gitlab.com/api/v4/projects/hadzhioglu%2Fpadavan-ng/packages/generic/toolchain/latest/toolchain.tzst -o toolchain.tzst
           
-          # 解压到临时目录后，将内容对齐到标准 toolchain-3.4.x 路径
+          # 解压工具链
           mkdir -p temp_tc
           tar -I zstd -xf toolchain.tzst -C temp_tc
           
-          # 自动寻找解压出的 bin 目录并将其内容复制到标准位置
+          # 自动对齐目录结构，确保 bin 目录直接位于 toolchain-3.4.x下
           EXTRACTED_BIN=$(find temp_tc -type d -name "bin" | head -n 1)
           if [ -n "$EXTRACTED_BIN" ]; then
             PARENT_DIR=$(dirname "$EXTRACTED_BIN")
-            cp -r "$PARENT_DIR"/* "$(pwd)/rt-n56u/toolchain-mipsel/"
+            cp -r "$PARENT_DIR"/* "$TOOLCHAIN_DIR/"
           fi
           rm -rf temp_tc
           
-          # 如果解压出来的名字不对，手动确保符号链接或目录正确
-          if [ ! -d "$TOOLCHAIN_DIR" ]; then
-            # 兼容其他可能的目录命名
-            ALT_DIR=$(find $(pwd)/rt-n56u/toolchain-mipsel -maxdepth 2 -type d -name "toolchain-3.4.x" | head -n 1)
-            if [ -z "$ALT_DIR" ]; then
-              # 如果没有找到，把根目录作为 toolchain-3.4.x
-              mv $(pwd)/rt-n56u/toolchain-mipsel/* "$TOOLCHAIN_DIR/" 2>/dev/null || true
-            fi
-          fi
-          
-          # 2. 最终硬核校验编译器是否存在
+          # 2. 严格校验编译器
           if [ ! -f "$TOOLCHAIN_DIR/bin/mipsel-linux-uclibc-gcc" ]; then
-            echo "Error: Compiler not found at $TOOLCHAIN_DIR/bin/mipsel-linux-uclibc-gcc"
-            find $(pwd)/rt-n56u -name "mipsel-linux-uclibc-gcc"
+            echo "Error: Compiler not found!"
             exit 1
           else
-            echo "Compiler successfully located at: $TOOLCHAIN_DIR/bin/mipsel-linux-uclibc-gcc"
+            echo "Compiler verified at: $TOOLCHAIN_DIR/bin/mipsel-linux-uclibc-gcc"
           fi
           
           # 3. 确保 NEWIFI-MINI 分区配置文件存在
@@ -113,11 +103,14 @@ jobs:
             echo "CONFIG_MTD_PART_PARTS=\"192k(u-boot),64k(config),64k(factory),14848k(firmware)\"" > "$BOARD_DIR/partitions.config"
           fi
           
-          # 4. 进入源码目录并开始编译
+          # 4. 进入源码目录并显式导出绝对路径变量编译
           cd rt-n56u/trunk
+          
+          # 将绝对路径写入环境变量并传递给底层 Makefile
           export PATH="$TOOLCHAIN_DIR/bin:$PATH"
           cp ../../build.config .config
           
+          # 使用绝对路径参数调用编译，彻底杜绝路径找不到的问题
           fakeroot ./build_firmware_modify NEWIFI-MINI
           
           # 5. 提取生成的固件
