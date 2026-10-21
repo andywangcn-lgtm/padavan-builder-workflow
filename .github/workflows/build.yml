@@ -50,10 +50,13 @@ jobs:
 
     - name: Build firmware
       run: |
-        cp build.config rt-n56u/trunk/.config
+        # 注意：hanwckf 源码下载下来后的文件夹默认叫 rt-n56u
         cd rt-n56u/trunk
-        ./clear_tree.sh
+        cp ../../build.config .config
+        # 针对 hanwckf 源码的清理和编译命令
+        make distclean
         ./build_firmware.sh
+
 
         FW_FILE_NAME="$(find images -type f -regextype posix-extended -iregex ".*\.(trx|bin)$" \
                         -printf "%T@\t%f\n" | sort -V | tail -1 | cut -f2)"
