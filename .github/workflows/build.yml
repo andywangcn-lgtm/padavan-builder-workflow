@@ -65,59 +65,59 @@ jobs:
     - name: Run custom pre-build script
       run: '[[ -f pre-build.sh ]] && . pre-build.sh || :'
 
-      - name: Build firmware
-        run: |
-          # 1. 准备工具链目录
-          rm -rf rt-n56u/toolchain-mipsel
-          mkdir -p rt-n56u/toolchain-mipsel
-          
-          echo "Downloading official toolchain..."
-          curl -L https://gitlab.com/api/v4/projects/hadzhioglu%2Fpadavan-ng/packages/generic/toolchain/latest/toolchain.tzst -o toolchain.tzst
-          
-          # 解压到 toolchain-mipsel
-          tar -I zstd -xf toolchain.tzst -C rt-n56u/toolchain-mipsel/
-          
-          # 2. 放弃软链接，改用物理复制（cp -r），彻底杜绝 Makefile 路径解析失败的问题
-          echo "=== 正在将工具链物理对齐到 toolchain-3.4.x ==="
-          mkdir -p rt-n56u/toolchain-mipsel/toolchain-3.4.x
-          
-          REAL_OUT=$(find rt-n56u/toolchain-mipsel -type d -name "out" | head -n 1)
-          if [ -n "$REAL_OUT" ]; then
-            cp -r "$REAL_OUT"/* rt-n56u/toolchain-mipsel/toolchain-3.4.x/
+    - name: Build firmware
+      run: |
+        # 1. 准备工具链目录
+        rm -rf rt-n56u/toolchain-mipsel
+        mkdir -p rt-n56u/toolchain-mipsel
+        
+        echo "Downloading official toolchain..."
+        curl -L https://gitlab.com/api/v4/projects/hadzhioglu%2Fpadavan-ng/packages/generic/toolchain/latest/toolchain.tzst -o toolchain.tzst
+        
+        # 解压到 toolchain-mipsel
+        tar -I zstd -xf toolchain.tzst -C rt-n56u/toolchain-mipsel/
+        
+        # 2. 放弃软链接，改用物理复制（cp -r），彻底杜绝 Makefile 路径解析失败的问题
+        echo "=== 正在将工具链物理对齐到 toolchain-3.4.x ==="
+        mkdir -p rt-n56u/toolchain-mipsel/toolchain-3.4.x
+        
+        REAL_OUT=$(find rt-n56u/toolchain-mipsel -type d -name "out" | head -n 1)
+        if [ -n "$REAL_OUT" ]; then
+          cp -r "$REAL_OUT"/* rt-n56u/toolchain-mipsel/toolchain-3.4.x/
+        else
+          REAL_BIN=$(find rt-n56u/toolchain-mipsel -type d -name "bin" | head -n 1)
+          if [ -n "$REAL_BIN" ]; then
+            PARENT_DIR=$(dirname "$REAL_BIN")
+            cp -r "$PARENT_DIR"/* rt-n56u/toolchain-mipsel/toolchain-3.4.x/
           else
-            REAL_BIN=$(find rt-n56u/toolchain-mipsel -type d -name "bin" | head -n 1)
-            if [ -n "$REAL_BIN" ]; then
-              PARENT_DIR=$(dirname "$REAL_BIN")
-              cp -r "$PARENT_DIR"/* rt-n56u/toolchain-mipsel/toolchain-3.4.x/
-            else
-              echo "错误：未能在解压包中找到 bin 目录！"
-              exit 1
-            fi
+            echo "错误：未能在解压包中找到 bin 目录！"
+            exit 1
           fi
-          
-          # 验证编译器物理文件是否真实存在
-          ls -la rt-n56u/toolchain-mipsel/toolchain-3.4.x/bin/mipsel-linux-uclibc-gcc
-          
-          # 3. 确保 NEWIFI-MINI 分区配置文件存在
-          BOARD_DIR="rt-n56u/trunk/configs/boards/Ralink/NEWIFI-MINI"
-          mkdir -p "$BOARD_DIR"
-          if [ ! -f "$BOARD_DIR/partitions.config" ]; then
-            echo "CONFIG_MTD_PART_PARTS=\"192k(u-boot),64k(config),64k(factory),14848k(firmware)\"" > "$BOARD_DIR/partitions.config"
-          fi
-          
-          # 4. 进入源码目录开始编译
-          cd rt-n56u/trunk
-          export PATH=$(pwd)/../toolchain-mipsel/toolchain-3.4.x/bin:$PATH
-          
-          cp ../../build.config .config
-          
-          fakeroot ./build_firmware_modify NEWIFI-MINI
-          
-          # 5. 提取固件
-          FW_FILE_NAME="$(find images -type f -regextype posix-extended -iregex ".*\.(trx|bin)$" \
-                          -printf "%T@\t%f\n" | sort -V | tail -1 | cut -f2)"
-          [[ -n $FW_FILE_NAME ]] || { echo "Firmware file not found"; exit 1; }
-          echo "FW_FILE_NAME=$FW_FILE_NAME" >> $GITHUB_ENV
+        fi
+        
+        # 验证编译器物理文件是否真实存在
+        ls -la rt-n56u/toolchain-mipsel/toolchain-3.4.x/bin/mipsel-linux-uclibc-gcc
+        
+        # 3. 确保 NEWIFI-MINI 分区配置文件存在
+        BOARD_DIR="rt-n56u/trunk/configs/boards/Ralink/NEWIFI-MINI"
+        mkdir -p "$BOARD_DIR"
+        if [ ! -f "$BOARD_DIR/partitions.config" ]; then
+          echo "CONFIG_MTD_PART_PARTS=\"192k(u-boot),64k(config),64k(factory),14848k(firmware)\"" > "$BOARD_DIR/partitions.config"
+        fi
+        
+        # 4. 进入源码目录开始编译
+        cd rt-n56u/trunk
+        export PATH=$(pwd)/../toolchain-mipsel/toolchain-3.4.x/bin:$PATH
+        
+        cp ../../build.config .config
+        
+        fakeroot ./build_firmware_modify NEWIFI-MINI
+        
+        # 5. 提取固件
+        FW_FILE_NAME="$(find images -type f -regextype posix-extended -iregex ".*\.(trx|bin)$" \
+                        -printf "%T@\t%f\n" | sort -V | tail -1 | cut -f2)"
+        [[ -n $FW_FILE_NAME ]] || { echo "Firmware file not found"; exit 1; }
+        echo "FW_FILE_NAME=$FW_FILE_NAME" >> $GITHUB_ENV
 
 
 
