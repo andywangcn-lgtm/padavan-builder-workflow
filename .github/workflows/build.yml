@@ -67,20 +67,39 @@ jobs:
 
     - name: Build firmware
       run: |
-          # 1. 准备工具链目录
-          rm -rf rt-n56u/toolchain-mipsel
-          mkdir -p rt-n56u/toolchain-mipsel
+          # 1. 彻底清理并创建标准的工具链物理目录
+          TC_TARGET_DIR="$(pwd)/rt-n56u/toolchain-mipsel/toolchain-3.4.x"
+          rm -rf "$(pwd)/rt-n56u/toolchain-mipsel"
+          mkdir -p "$TC_TARGET_DIR"
           
-          echo "Downloading toolchain..."
+          echo "Downloading official toolchain..."
           curl -L https://gitlab.com/api/v4/projects/hadzhioglu%2Fpadavan-ng/packages/generic/toolchain/latest/toolchain.tzst -o toolchain.tzst
-          tar -I zstd -xf toolchain.tzst -C rt-n56u/toolchain-mipsel/
           
-          # 2. 软链接对齐目录
-          FOUND_BIN=$(find rt-n56u/toolchain-mipsel -type d -name "bin" | head -n 1)
-          if [ -n "$FOUND_BIN" ]; then
-            PARENT_TC=$(dirname "$FOUND_BIN")
-            rm -rf rt-n56u/toolchain-mipsel/toolchain-3.4.x
-            ln -sf "$PARENT_TC" rt-n56u/toolchain-mipsel/toolchain-3.4.x
+          # 解压到临时文件夹
+          mkdir -p temp_extracted
+          tar -I zstd -xf toolchain.tzst -C temp_extracted
+          
+          # 智能寻找解压出来的 bin 目录，并将其父目录的所有内容整体物理复制到目标位置
+          REAL_BIN=$(find temp_extracted -type d -name "bin" | head -n 1)
+          if [ -n "$REAL_BIN" ]; then
+            REAL_ROOT=$(dirname "$REAL_BIN")
+            echo "找到真实的工具链根目录: $REAL_ROOT"
+            cp -r "$REAL_ROOT"/* "$TC_TARGET_DIR/"
+          else
+            echo "错误：未能在压缩包中找到 bin 目录！"
+            exit 1
+          fi
+          
+          # 清理临时解压目录
+          rm -rf temp_extracted
+          
+          # 2. 硬核自检：确认编译器物理文件100%存在
+          if [ ! -f "$TC_TARGET_DIR/bin/mipsel-linux-uclibc-gcc" ]; then
+            echo "错误：编译器物理文件不存在于预期位置！"
+            ls -la "$TC_TARGET_DIR/bin"
+            exit 1
+          else
+            echo "【校验成功】编译器已就位: $TC_TARGET_DIR/bin/mipsel-linux-uclibc-gcc"
           fi
           
           # 3. 确保 NEWIFI-MINI 分区配置文件存在
@@ -90,16 +109,14 @@ jobs:
             echo "CONFIG_MTD_PART_PARTS=\"192k(u-boot),64k(config),64k(factory),14848k(firmware)\"" > "$BOARD_DIR/partitions.config"
           fi
           
-          # 4. 进入源码目录并显式注入绝对路径编译
+          # 4. 进入源码目录开始编译
           cd rt-n56u/trunk
           
-          # 获取工具链 bin 目录的绝对路径
-          TC_BIN_PATH="$(pwd)/../toolchain-mipsel/toolchain-3.4.x/bin"
-          export PATH="$TC_BIN_PATH:$PATH"
-          
+          # 将工具链 bin 目录加入环境变量
+          export PATH="$TC_TARGET_DIR/bin:$PATH"
           cp ../../build.config .config
           
-          # 核心修复：在 make/fakeroot 时通过命令行显式传入 CROSS_COMPILE 参数，彻底解决内核编译报错
+          # 执行编译
           fakeroot ./build_firmware_modify NEWIFI-MINI
           
           # 5. 提取固件
