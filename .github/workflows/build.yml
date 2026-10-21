@@ -58,8 +58,9 @@ jobs:
         # 复制配置文件
         cp ../../build.config .config
         
-        # 使用 hanwckf 源码正确的 CI 编译脚本
-        ./build_firmware_ci
+        # 使用 hanwckf 官方推荐的修改/编译脚本并直接传入 WE1626 的完整机型参数
+        fakeroot ./build_firmware_modify ZBT_WE1626
+
 
 
         FW_FILE_NAME="$(find images -type f -regextype posix-extended -iregex ".*\.(trx|bin)$" \
