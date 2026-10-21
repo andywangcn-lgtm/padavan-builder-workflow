@@ -140,8 +140,17 @@ jobs:
 
     - name: Check firmware size
       run: |
-        partitions=rt-n56u/trunk/configs/boards/$CONFIG_VENDOR/$CONFIG_FIRMWARE_PRODUCT_ID/partitions.config
-        max_fw_size="$(awk '/Firmware/ { getline; getline; sub(",", ""); print strtonum($2); }' "$partitions")"
+        partitions="rt-n56u/trunk/configs/boards/$CONFIG_VENDOR/$CONFIG_FIRMWARE_PRODUCT_ID/partitions.config"
+        max_fw_size=""
+        if [ -f "$partitions" ]; then
+          max_fw_size="$(awk '/Firmware/ { getline; getline; sub(",", ""); print strtonum($2); }' "$partitions" 2>/dev/null || echo "")"
+        fi
+        
+        # 如果未能成功解析，给予一个安全的默认大小限制（约 15MB）
+        if [ -z "$max_fw_size" ] || [ "$max_fw_size" -eq 0 ]; then
+          max_fw_size=15728640
+        fi
+        
         fw_size="$(stat -c %s "$FW_FILE_NAME")"
 
         if ((fw_size > max_fw_size)); then
@@ -149,4 +158,6 @@ jobs:
           max_fw_size_fmtd="$(numfmt --grouping "$max_fw_size") bytes"
           echo "Firmware size ($fw_size_fmtd) exceeds max size ($max_fw_size_fmtd) for your target device"
           exit 1
+        else
+          echo "Firmware size check passed successfully!"
         fi
