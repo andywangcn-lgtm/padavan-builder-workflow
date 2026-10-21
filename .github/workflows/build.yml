@@ -14,7 +14,7 @@ jobs:
     - name: Install dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y gettext autopoint gawk build-essential ccache fakeroot libglib2.0-dev libfdt-dev libpixman-1-dev zlib1g-dev python3-pip libncurses5-dev libncursesw5-dev
+        sudo apt-get install -y gettext autopoint libtool libltdl-dev gawk build-essential ccache fakeroot libglib2.0-dev libfdt-dev libpixman-1-dev zlib1g-dev python3-pip libncurses5-dev libncursesw5-dev
 
 
     - name: Get variables
