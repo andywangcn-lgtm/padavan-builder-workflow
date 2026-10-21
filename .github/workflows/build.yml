@@ -50,9 +50,13 @@ jobs:
 
     - name: Build firmware
       run: |
-        # 建立工具链软链接，确保 hanwckf 内部脚本找不到绝对路径的问题彻底解决
+        # 彻底解决工具链路径问题：在当前工作目录下直接创建标准的 toolchain-mipsel 目录并把正确的工具链放进去
+        rm -rf rt-n56u/toolchain-mipsel
         mkdir -p rt-n56u/toolchain-mipsel
         ln -sf /opt/rt-n56u/toolchain-mipsel/toolchain-3.4.x rt-n56u/toolchain-mipsel/toolchain-3.4.x
+        
+        # 另外在工作空间根目录也做一个镜像软链，防止 Makefile 往上找时漏掉
+        ln -sf /opt/rt-n56u/toolchain-mipsel toolchain-mipsel
         
         cd rt-n56u/trunk
         
