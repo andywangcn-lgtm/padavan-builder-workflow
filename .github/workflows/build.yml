@@ -34,17 +34,21 @@ jobs:
 
     - name: Fix partitions config for NEWIFI-MINI
       run: |
-          BOARD_DIR="rt-n56u/trunk/configs/boards/Ralink/NEWIFI-MINI"
-          if [ ! -f "$BOARD_DIR/partitions.config" ]; then
-            echo "partitions.config not found, creating a default one..."
-            DEFAULT_CFG=$(find rt-n56u/trunk/configs/boards -name "partitions.config" | head -n 1)
-            if [ -n "$DEFAULT_CFG" ]; then
-              cp "$DEFAULT_CFG" "$BOARD_DIR/partitions.config"
-              echo "Copied from $DEFAULT_CFG"
-            else
-              echo "CONFIG_MTD_PART_PARTS=\"192k(u-boot),64k(config),64k(factory),14848k(firmware)\"" > "$BOARD_DIR/partitions.config"
-            fi
+        BOARD_DIR="rt-n56u/trunk/configs/boards/Ralink/NEWIFI-MINI"
+        # 核心修复：如果目录不存在，先强制创建它
+        mkdir -p "$BOARD_DIR"
+          
+        if [ ! -f "$BOARD_DIR/partitions.config" ]; then
+          echo "partitions.config not found, creating a default one..."
+          DEFAULT_CFG=$(find rt-n56u/trunk/configs/boards -name "partitions.config" | head -n 1)
+          if [ -n "$DEFAULT_CFG" ]; then
+            cp "$DEFAULT_CFG" "$BOARD_DIR/partitions.config"
+            echo "Copied from $DEFAULT_CFG"
+          else
+            echo "CONFIG_MTD_PART_PARTS=\"192k(u-boot),64k(config),64k(factory),14848k(firmware)\"" > "$BOARD_DIR/partitions.config"
           fi
+        fi
+
 
     - name: Install themes
       run: |
