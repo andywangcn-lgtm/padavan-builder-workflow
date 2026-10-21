@@ -67,46 +67,64 @@ jobs:
 
     - name: Build firmware
       run: |
-          # 1. 彻底清理并直接将工具链解压到标准绝对路径
-          rm -rf rt-n56u/toolchain-mipsel
-          mkdir -p rt-n56u/toolchain-mipsel/toolchain-3.4.x
+          # 1. 在绝对路径下初始化工具链目录
+          TOOLCHAIN_DIR="$(pwd)/rt-n56u/toolchain-mipsel/toolchain-3.4.x"
+          rm -rf "$(pwd)/rt-n56u/toolchain-mipsel"
+          mkdir -p "$TOOLCHAIN_DIR"
           
-          echo "Downloading official toolchain..."
+          echo "Downloading and extracting official toolchain..."
           curl -L https://gitlab.com/api/v4/projects/hadzhioglu%2Fpadavan-ng/packages/generic/toolchain/latest/toolchain.tzst -o toolchain.tzst
           
-          # 直接解压到目标目录，并处理可能的多层嵌套
-          tar -I zstd -xf toolchain.tzst -C rt-n56u/toolchain-mipsel/
+          # 解压到临时目录后，将内容对齐到标准 toolchain-3.4.x 路径
+          mkdir -p temp_tc
+          tar -I zstd -xf toolchain.tzst -C temp_tc
           
-          # 自动展平可能存在的嵌套文件夹
-          if [ -d "rt-n56u/toolchain-mipsel/toolchain-3.4.x/toolchain-3.4.x" ]; then
-            mv rt-n56u/toolchain-mipsel/toolchain-3.4.x/toolchain-3.4.x/* rt-n56u/toolchain-mipsel/toolchain-3.4.x/
-            rm -rf rt-n56u/toolchain-mipsel/toolchain-3.4.x/toolchain-3.4.x
+          # 自动寻找解压出的 bin 目录并将其内容复制到标准位置
+          EXTRACTED_BIN=$(find temp_tc -type d -name "bin" | head -n 1)
+          if [ -n "$EXTRACTED_BIN" ]; then
+            PARENT_DIR=$(dirname "$EXTRACTED_BIN")
+            cp -r "$PARENT_DIR"/* "$(pwd)/rt-n56u/toolchain-mipsel/"
+          fi
+          rm -rf temp_tc
+          
+          # 如果解压出来的名字不对，手动确保符号链接或目录正确
+          if [ ! -d "$TOOLCHAIN_DIR" ]; then
+            # 兼容其他可能的目录命名
+            ALT_DIR=$(find $(pwd)/rt-n56u/toolchain-mipsel -maxdepth 2 -type d -name "toolchain-3.4.x" | head -n 1)
+            if [ -z "$ALT_DIR" ]; then
+              # 如果没有找到，把根目录作为 toolchain-3.4.x
+              mv $(pwd)/rt-n56u/toolchain-mipsel/* "$TOOLCHAIN_DIR/" 2>/dev/null || true
+            fi
           fi
           
-          # 验证编译器是否存在
-          ls -la rt-n56u/toolchain-mipsel/toolchain-3.4.x/bin/mipsel-linux-uclibc-gcc
+          # 2. 最终硬核校验编译器是否存在
+          if [ ! -f "$TOOLCHAIN_DIR/bin/mipsel-linux-uclibc-gcc" ]; then
+            echo "Error: Compiler not found at $TOOLCHAIN_DIR/bin/mipsel-linux-uclibc-gcc"
+            find $(pwd)/rt-n56u -name "mipsel-linux-uclibc-gcc"
+            exit 1
+          else
+            echo "Compiler successfully located at: $TOOLCHAIN_DIR/bin/mipsel-linux-uclibc-gcc"
+          fi
           
-          # 2. 确保 NEWIFI-MINI 分区配置文件存在
+          # 3. 确保 NEWIFI-MINI 分区配置文件存在
           BOARD_DIR="rt-n56u/trunk/configs/boards/Ralink/NEWIFI-MINI"
           mkdir -p "$BOARD_DIR"
           if [ ! -f "$BOARD_DIR/partitions.config" ]; then
             echo "CONFIG_MTD_PART_PARTS=\"192k(u-boot),64k(config),64k(factory),14848k(firmware)\"" > "$BOARD_DIR/partitions.config"
           fi
           
-          # 3. 进入源码目录并开始编译
+          # 4. 进入源码目录并开始编译
           cd rt-n56u/trunk
-          export PATH=$PATH:$(pwd)/../toolchain-mipsel/toolchain-3.4.x/bin
+          export PATH="$TOOLCHAIN_DIR/bin:$PATH"
           cp ../../build.config .config
           
           fakeroot ./build_firmware_modify NEWIFI-MINI
           
-          # 4. 提取固件
+          # 5. 提取生成的固件
           FW_FILE_NAME="$(find images -type f -regextype posix-extended -iregex ".*\.(trx|bin)$" \
                           -printf "%T@\t%f\n" | sort -V | tail -1 | cut -f2)"
           [[ -n $FW_FILE_NAME ]] || { echo "Firmware file not found"; exit 1; }
           echo "FW_FILE_NAME=$FW_FILE_NAME" >> $GITHUB_ENV
-
-
 
 
     - name: Run custom post-build script
