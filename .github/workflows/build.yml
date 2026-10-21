@@ -48,49 +48,31 @@ jobs:
     - name: Run custom pre-build script
       run: '[[ -f pre-build.sh ]] && . pre-build.sh || :'
 
-
     - name: Build firmware
       run: |
-        echo "=== 正在对齐工具链路径 ==="
+        # 1. 彻底清理并重建标准的工具链目录
+        rm -rf rt-n56u/toolchain-mipsel
         mkdir -p rt-n56u/toolchain-mipsel
         
-        # 在工作空间中寻找已下载的 toolchain-3.4.x
-        FOUND_TC=$(find . -maxdepth 4 -type d -name "toolchain-3.4.x" | head -n 1)
+        # 2. 直接下载官方工具链并使用 zstd 解压到标准位置
+        curl -L https://gitlab.com/api/v4/projects/hadzhioglu%2Fpadavan-ng/packages/generic/toolchain/latest/toolchain.tzst -o toolchain.tzst
+        tar -I zstd -xf toolchain.tzst -C rt-n56u/toolchain-mipsel/
         
-        if [ -n "$FOUND_TC" ]; then
-          echo "找到已存在的工具链路径: $FOUND_TC"
-          rm -rf rt-n56u/toolchain-mipsel/toolchain-3.4.x
-          # 建立绝对精准的软链接
-          ln -sf $(pwd)/$FOUND_TC rt-n56u/toolchain-mipsel/toolchain-3.4.x
-        else
-          echo "未找到工具链，正在现场下载..."
-          curl -L https://gitlab.com/api/v4/projects/hadzhioglu%2Fpadavan-ng/packages/generic/toolchain/latest/toolchain.tzst -o toolchain.tzst
-          tar -I zstd -xf toolchain.tzst -C rt-n56u/toolchain-mipsel/
-          # 自动展平嵌套目录
-          REAL_TC_DIR=$(find rt-n56u/toolchain-mipsel -type f -name "mipsel-linux-uclibc-gcc" | head -n 1 | xargs dirname | xargs dirname)
-          if [ "$REAL_TC_DIR" != "rt-n56u/toolchain-mipsel/toolchain-3.4.x" ] && [ -n "$REAL_TC_DIR" ]; then
-            rm -rf rt-n56u/toolchain-mipsel/toolchain-3.4.x
-            mv "$REAL_TC_DIR" rt-n56u/toolchain-mipsel/toolchain-3.4.x
-          fi
-        fi
-        
-        # 验证编译器是否真实可用
-        ls -la rt-n56u/toolchain-mipsel/toolchain-3.4.x/bin/mipsel-linux-uclibc-gcc
-        
+        # 3. 进入源码 trunk 目录
         cd rt-n56u/trunk
         
-        # 配置环境变量与编译
+        # 4. 配置环境变量并复制配置
         export PATH=$PATH:$(pwd)/../toolchain-mipsel/toolchain-3.4.x/bin
         cp ../../build.config .config
         
+        # 5. 开始编译 NEWIFI-MINI 固件
         fakeroot ./build_firmware_modify NEWIFI-MINI
         
-        # 提取生成的固件
+        # 6. 提取生成的固件
         FW_FILE_NAME="$(find images -type f -regextype posix-extended -iregex ".*\.(trx|bin)$" \
                         -printf "%T@\t%f\n" | sort -V | tail -1 | cut -f2)"
         [[ -n $FW_FILE_NAME ]] || { echo "Firmware file not found"; exit 1; }
         echo "FW_FILE_NAME=$FW_FILE_NAME" >> $GITHUB_ENV
-
 
 
 
