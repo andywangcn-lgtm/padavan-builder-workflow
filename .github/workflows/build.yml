@@ -52,9 +52,12 @@ jobs:
       run: |
         # 注意：hanwckf 源码下载下来后的文件夹默认叫 rt-n56u
         cd rt-n56u/trunk
+        # 将工具链的 bin 目录加入系统的 PATH 环境变量中
+        export PATH=$PATH:/opt/rt-n56u/toolchain-mipsel/toolchain-3.4.x/bin
+        
         cp ../../build.config .config
-        # 针对 hanwckf 源码的清理和编译命令
-        make clean
+        
+        # 汉化/更新依赖并直接开始编译（去掉会报错的 make clean）
         ./build_firmware.sh
 
 
