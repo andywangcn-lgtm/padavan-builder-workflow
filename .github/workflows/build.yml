@@ -16,20 +16,6 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y zstd gettext autopoint libtool libltdl-dev gawk build-essential ccache fakeroot libglib2.0-dev libfdt-dev libpixman-1-dev zlib1g-dev python3-pip libncurses5-dev libncursesw5-dev
 
-    - name: Fix partitions config for NEWIFI-MINI
-      run: |
-          BOARD_DIR="rt-n56u/trunk/configs/boards/Ralink/NEWIFI-MINI"
-          if [ ! -f "$BOARD_DIR/partitions.config" ]; then
-            echo "partitions.config not found, creating a default one..."
-            DEFAULT_CFG=$(find rt-n56u/trunk/configs/boards -name "partitions.config" | head -n 1)
-            if [ -n "$DEFAULT_CFG" ]; then
-              cp "$DEFAULT_CFG" "$BOARD_DIR/partitions.config"
-              echo "Copied from $DEFAULT_CFG"
-            else
-              echo "CONFIG_MTD_PART_PARTS=\"192k(u-boot),64k(config),64k(factory),14848k(firmware)\"" > "$BOARD_DIR/partitions.config"
-            fi
-          fi
-
     - name: Get variables
       run: |
         sed -i 's|\r$||g' variables build.config
@@ -45,6 +31,20 @@ jobs:
         git clone -b "$PADAVAN_BRANCH" "$PADAVAN_REPO"
         git -C rt-n56u checkout "$PADAVAN_COMMIT"
         wget -qO- "$PADAVAN_TOOLCHAIN_URL" | tar -C rt-n56u --zstd -xf -
+
+    - name: Fix partitions config for NEWIFI-MINI
+      run: |
+          BOARD_DIR="rt-n56u/trunk/configs/boards/Ralink/NEWIFI-MINI"
+          if [ ! -f "$BOARD_DIR/partitions.config" ]; then
+            echo "partitions.config not found, creating a default one..."
+            DEFAULT_CFG=$(find rt-n56u/trunk/configs/boards -name "partitions.config" | head -n 1)
+            if [ -n "$DEFAULT_CFG" ]; then
+              cp "$DEFAULT_CFG" "$BOARD_DIR/partitions.config"
+              echo "Copied from $DEFAULT_CFG"
+            else
+              echo "CONFIG_MTD_PART_PARTS=\"192k(u-boot),64k(config),64k(factory),14848k(firmware)\"" > "$BOARD_DIR/partitions.config"
+            fi
+          fi
 
     - name: Install themes
       run: |
