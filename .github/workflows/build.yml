@@ -54,7 +54,7 @@ jobs:
         cd rt-n56u/trunk
         cp ../../build.config .config
         # 针对 hanwckf 源码的清理和编译命令
-        make distclean
+        make clean
         ./build_firmware.sh
 
 
