@@ -52,31 +52,35 @@ jobs:
 
     - name: Build firmware
       run: |
-        # 1. 自动寻找工作空间中已下载的 toolchain-3.4.x 实际路径
-        TOOLCHAIN_PATH=$(find . -maxdepth 3 -type d -name "toolchain-3.4.x" | head -n 1)
-        echo "Found toolchain at: $TOOLCHAIN_PATH"
-        
-        # 2. 在 rt-n56u 目录下建立正确的父级目录结构，并将工具链链接过去
+        # 1. 暴力清除旧的，直接在源码的正确相对位置（rt-n56u/toolchain-mipsel）重新下载并解压官方工具链
+        rm -rf rt-n56u/toolchain-mipsel
         mkdir -p rt-n56u/toolchain-mipsel
-        ln -sf $(pwd)/$TOOLCHAIN_PATH rt-n56u/toolchain-mipsel/toolchain-3.4.x
+        
+        echo "Downloading official toolchain..."
+        curl -L https://gitlab.com/api/v4/projects/hadzhioglu%2Fpadavan-ng/packages/generic/toolchain/latest/toolchain.tzst -o toolchain.tzst
+        tar -I zstd -xf toolchain.tzst -C rt-n56u/toolchain-mipsel/
+        
+        # 确保目录层级绝对正确（兼容不同压缩包内部命名）
+        if [ -d "rt-n56u/toolchain-mipsel/toolchain-mipsel" ]; then
+          mv rt-n56u/toolchain-mipsel/toolchain-mipsel/* rt-n56u/toolchain-mipsel/
+        fi
         
         cd rt-n56u/trunk
         
-        # 3. 将工具链 bin 目录加入环境变量
+        # 2. 将工具链加入环境变量
         export PATH=$PATH:$(pwd)/../toolchain-mipsel/toolchain-3.4.x/bin
         
-        # 4. 复制用户配置文件
+        # 3. 复制用户配置文件
         cp ../../build.config .config
         
-        # 5. 启动 NEWIFI-MINI 编译
+        # 4. 启动 NEWIFI-MINI 编译
         fakeroot ./build_firmware_modify NEWIFI-MINI
         
-        # 6. 提取生成的 trx 固件文件名
+        # 5. 提取生成的 trx 固件文件名
         FW_FILE_NAME="$(find images -type f -regextype posix-extended -iregex ".*\.(trx|bin)$" \
                         -printf "%T@\t%f\n" | sort -V | tail -1 | cut -f2)"
         [[ -n $FW_FILE_NAME ]] || { echo "Firmware file not found"; exit 1; }
         echo "FW_FILE_NAME=$FW_FILE_NAME" >> $GITHUB_ENV
-
 
 
 
