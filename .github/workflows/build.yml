@@ -53,13 +53,9 @@ jobs:
         # 注意：hanwckf 源码下载下来后的文件夹默认叫 rt-n56u
         cd rt-n56u/trunk
         # 将工具链的 bin 目录加入系统的 PATH 环境变量中
+        ls -la
         export PATH=$PATH:/opt/rt-n56u/toolchain-mipsel/toolchain-3.4.x/bin
 
-        # 复制配置文件到当前目录
-        cp ../../build.config .config
-        
-        # hanwckf 源码标准的机型编译命令
-        ./build_firmware.sh ZBT WE1626
 
 
         FW_FILE_NAME="$(find images -type f -regextype posix-extended -iregex ".*\.(trx|bin)$" \
