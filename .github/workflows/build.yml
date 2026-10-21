@@ -55,14 +55,12 @@ jobs:
         # 将工具链加入环境变量
         export PATH=$PATH:/opt/rt-n56u/toolchain-mipsel/toolchain-3.4.x/bin
         
-        # 核心修复：将 MI-NANO 的默认配置复制并重命名为脚本所寻找的模板文件
-        cp configs/boards/MI-NANO/defconfig configs/templates/Ralink_MI-NANO.config
-        
         # 复制用户自定义配置文件
         cp ../../build.config .config
         
-        # 执行编译命令
-        fakeroot ./build_firmware_modify Ralink_MI-NANO
+        # 直接使用官方完美支持的 NEWIFI-MINI 进行编译
+        fakeroot ./build_firmware_modify NEWIFI-MINI
+
 
 
 
